@@ -408,6 +408,16 @@ namespace GoRogue.Pathing
         }
 
         /// <summary>
+        /// Create a path from supplied points
+        /// </summary>
+        /// <param name="steps">The points. A copy is made.</param>
+        public Path(IEnumerable<Point> steps)
+        {
+            _steps = steps.ToArray();
+            _inOriginalOrder = true;
+        }
+
+        /// <summary>
         /// Ending point of the path.
         /// </summary>
         public Point End => _inOriginalOrder ? _steps[0] : _steps[^1];
