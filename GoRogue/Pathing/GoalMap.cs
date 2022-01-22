@@ -99,24 +99,26 @@ namespace GoRogue.Pathing
         /// Gets the direction of the neighbor with the minimum goal-map value from the given position.
         /// </summary>
         /// <param name="position">The position to get the minimum value for.</param>
+        /// <param name="preferMovementOverNonMovement">If comparison is equal and this is false then do not consider this a valid target</param>
         /// <returns>
         /// The direction that has the minimum value in the goal-map, or <see cref="Direction.None" /> if the
         /// neighbors are all obstacles.
         /// </returns>
-        public Direction GetDirectionOfMinValue(Point position)
-            => this.GetDirectionOfMinValue(position, DistanceMeasurement);
+        public Direction GetDirectionOfMinValue(Point position, bool preferMovementOverNonMovement = true)
+            => this.GetDirectionOfMinValue(position, DistanceMeasurement, preferMovementOverNonMovement);
 
         /// <summary>
         /// Gets the direction of the neighbor with the minimum goal-map value from the given position.
         /// </summary>
         /// <param name="positionX">The x-value of the position to get the minimum value for.</param>
         /// <param name="positionY">The y-value of the position to get the minimum value for.</param>
+        /// <param name="preferMovementOverNonMovement">If comparison is equal and this is false then do not consider this a valid target</param>
         /// <returns>
         /// The direction that has the minimum value in the goal-map, or <see cref="Direction.None" /> if the
         /// neighbors are all obstacles.
         /// </returns>
-        public Direction GetDirectionOfMinValue(int positionX, int positionY)
-            => this.GetDirectionOfMinValue(positionX, positionY, DistanceMeasurement);
+        public Direction GetDirectionOfMinValue(int positionX, int positionY, bool preferMovementOverNonMovement = true)
+            => this.GetDirectionOfMinValue(positionX, positionY, DistanceMeasurement, preferMovementOverNonMovement);
 
         /// <summary>
         /// Returns the goal-map values represented as a 2D grid-style string.

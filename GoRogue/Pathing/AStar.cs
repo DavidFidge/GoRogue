@@ -413,7 +413,7 @@ namespace GoRogue.Pathing
         /// <param name="steps">The points. A copy is made.</param>
         public Path(IEnumerable<Point> steps)
         {
-            _steps = steps.ToArray();
+            _steps = steps.Reverse().ToArray();
             _inOriginalOrder = true;
         }
 

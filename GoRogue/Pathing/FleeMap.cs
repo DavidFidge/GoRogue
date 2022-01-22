@@ -83,24 +83,26 @@ namespace GoRogue.Pathing
         /// Gets the direction of the neighbor with the minimum flee-map value from the given position.
         /// </summary>
         /// <param name="position">The position to get the minimum value for.</param>
+        /// <param name="preferMovementOverNonMovement">If comparison is equal and this is false then do not consider this a valid target</param>
         /// <returns>
         /// The direction that has the minimum value in the goal-map, or <see cref="Direction.None" /> if the
         /// neighbors are all obstacles.
         /// </returns>
-        public Direction GetDirectionOfMinValue(Point position)
-            => _goalMap.GetDirectionOfMinValue(position, _baseMap.DistanceMeasurement);
+        public Direction GetDirectionOfMinValue(Point position, bool preferMovementOverNonMovement = true)
+            => _goalMap.GetDirectionOfMinValue(position, _baseMap.DistanceMeasurement, preferMovementOverNonMovement);
 
         /// <summary>
         /// Gets the direction of the neighbor with the minimum flee-map value from the given position.
         /// </summary>
         /// <param name="positionX">The x-value of the position to get the minimum value for.</param>
         /// <param name="positionY">The y-value of the position to get the minimum value for.</param>
+        /// <param name="preferMovementOverNonMovement">If comparison is equal and this is false then do not consider this a valid target</param>
         /// <returns>
         /// The direction that has the minimum value in the goal-map, or <see cref="Direction.None" /> if the
         /// neighbors are all obstacles.
         /// </returns>
-        public Direction GetDirectionOfMinValue(int positionX, int positionY)
-            => _goalMap.GetDirectionOfMinValue(positionX, positionY, _baseMap.DistanceMeasurement);
+        public Direction GetDirectionOfMinValue(int positionX, int positionY, bool preferMovementOverNonMovement = true)
+            => _goalMap.GetDirectionOfMinValue(positionX, positionY, _baseMap.DistanceMeasurement, preferMovementOverNonMovement);
 
         /// <summary>
         /// Returns the flee-map values represented as a 2D grid-style string.

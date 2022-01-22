@@ -1,4 +1,6 @@
-﻿using JetBrains.Annotations;
+﻿using System;
+
+using JetBrains.Annotations;
 using SadRogue.Primitives;
 using SadRogue.Primitives.GridViews;
 
@@ -16,12 +18,13 @@ namespace GoRogue.Pathing
         /// <param name="goalMap" />
         /// <param name="position">The position to get the minimum value for.</param>
         /// <param name="adjacencyRule">The adjacency rule to use to determine neighbors.</param>
+        /// <param name="preferMovementOverNonMovement">If comparison is equal and this is false then do not consider this a valid target</param>
         /// <returns>
         /// The direction that has the minimum value in the goal-map, or <see cref="Direction.None" /> if the
         /// neighbors are all obstacles.
         /// </returns>
         public static Direction GetDirectionOfMinValue(this IGridView<double?> goalMap, Point position,
-                                                       AdjacencyRule adjacencyRule)
+                                                       AdjacencyRule adjacencyRule, bool preferMovementOverNonMovement = true)
         {
             var min = goalMap[position].HasValue ? goalMap[position]!.Value : double.MaxValue;
             var minDir = Direction.None;
@@ -36,6 +39,9 @@ namespace GoRogue.Pathing
                 if (goalMap[newPosition]!.Value <= min
                 ) // <= to prefer movement over non movement; known to be not null thanks to above continue
                 {
+                    if (Math.Abs(goalMap[newPosition]!.Value - min) < double.Epsilon && !preferMovementOverNonMovement)
+                        continue;
+
                     min = goalMap[newPosition]!.Value; // Again known to be not null thanks to above continue
                     minDir = dir;
                 }
@@ -51,12 +57,13 @@ namespace GoRogue.Pathing
         /// <param name="positionX">The x-value of the position to get the minimum value for.</param>
         /// <param name="positionY">The y-value of the position to get the minimum value for.</param>
         /// <param name="adjacencyRule">The adjacency rule to use to determine neighbors.</param>
+        /// <param name="preferMovementOverNonMovement">If comparison is equal and this is false then do not consider this a valid target</param>
         /// <returns>
         /// The direction that has the minimum value in the goal-map, or <see cref="Direction.None" /> if the
         /// neighbors are all obstacles.
         /// </returns>
         public static Direction GetDirectionOfMinValue(this IGridView<double?> goalMap, int positionX, int positionY,
-                                                       AdjacencyRule adjacencyRule)
-            => goalMap.GetDirectionOfMinValue(new Point(positionX, positionY), adjacencyRule);
+                                                       AdjacencyRule adjacencyRule, bool preferMovementOverNonMovement = true)
+            => goalMap.GetDirectionOfMinValue(new Point(positionX, positionY), adjacencyRule, preferMovementOverNonMovement);
     }
 }
