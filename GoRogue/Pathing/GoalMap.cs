@@ -22,7 +22,7 @@ namespace GoRogue.Pathing
     /// <see cref="IGridView{T}" />, where <see langword="null" /> indicates a square is an obstacle,
     /// and any other value indicates distance from the nearest goal.  Thus, a value of 0 indicates a tile
     /// contains a goal.
-    /// For items following the GoalMap, they can simply call <see cref="GetDirectionOfMinValue(Point)" />
+    /// For items following the GoalMap, they can simply call <see cref="GetDirectionOfMinValue(Point, bool)" />
     /// </remarks>
     [PublicAPI]
     public class GoalMap : GridViewBase<double?>
