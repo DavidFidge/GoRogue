@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using GoRogue.Components;
 using GoRogue.Components.ParentAware;
+using GoRogue.FOV;
 using GoRogue.Pathing;
+using GoRogue.Pooling;
 using GoRogue.SpatialMaps;
 using JetBrains.Annotations;
 using SadRogue.Primitives;
 using SadRogue.Primitives.GridViews;
-using GoRogue.FOV;
 using SadRogue.Primitives.PointHashers;
 
 namespace GoRogue.GameFramework
@@ -84,6 +85,11 @@ namespace GoRogue.GameFramework
         /// <see cref="SadRogue.Primitives.Distance" /> measurement to use for pathfinding/measuring distance on the
         /// map.
         /// </param>
+        /// <param name="customListPoolCreator">
+        /// A function used to determine the list pool implementation used for the spatial maps which support multiple
+        /// items in a location (if any).  The function takes the layer it is creating the pool for as a parameter.
+        /// If no custom creator is specified, a ListPool is used.
+        /// </param>
         /// <param name="layersBlockingWalkability">
         /// Layer mask containing those layers that should be allowed to have items that block walkability.
         /// Defaults to all layers.
@@ -118,6 +124,7 @@ namespace GoRogue.GameFramework
         /// ComponentCollection is sufficient for nearly all use cases.
         /// </param>
         public Map(int width, int height, int numberOfEntityLayers, Distance distanceMeasurement,
+                   Func<int, IListPool<IGameObject>>? customListPoolCreator = null,
                    uint layersBlockingWalkability = uint.MaxValue,
                    uint layersBlockingTransparency = uint.MaxValue,
                    uint entityLayersSupportingMultipleItems = uint.MaxValue,
@@ -126,8 +133,8 @@ namespace GoRogue.GameFramework
                    AStar? customPather = null,
                    IComponentCollection? customComponentCollection = null)
             : this(new ArrayView<IGameObject?>(width, height), distanceMeasurement, numberOfEntityLayers,
-                layersBlockingWalkability, layersBlockingTransparency, entityLayersSupportingMultipleItems,
-                pointComparer, customPlayerFOV, customPather, customComponentCollection)
+                customListPoolCreator, layersBlockingWalkability, layersBlockingTransparency,
+                entityLayersSupportingMultipleItems, pointComparer, customPlayerFOV, customPather, customComponentCollection)
         { }
 
         /// <summary>
@@ -169,6 +176,11 @@ namespace GoRogue.GameFramework
         /// <see cref="SadRogue.Primitives.Distance" /> measurement to use for pathfinding/measuring distance on the
         /// map.
         /// </param>
+        /// <param name="customListPoolCreator">
+        /// A function used to determine the list pool implementation used for the spatial maps which support multiple
+        /// items in a location (if any).  The function takes the layer it is creating the pool for as a parameter.
+        /// If no custom creator is specified, a ListPool is used.
+        /// </param>
         /// <param name="layersBlockingWalkability">
         /// Layer mask containing those layers that should be allowed to have items that block walkability.
         /// Defaults to all layers.
@@ -203,6 +215,7 @@ namespace GoRogue.GameFramework
         /// ComponentCollection is sufficient for nearly all use cases.
         /// </param>
         public Map(ISettableGridView<IGameObject?> terrainLayer, int numberOfEntityLayers, Distance distanceMeasurement,
+                   Func<int, IListPool<IGameObject>>? customListPoolCreator = null,
                    uint layersBlockingWalkability = uint.MaxValue,
                    uint layersBlockingTransparency = uint.MaxValue,
                    uint entityLayersSupportingMultipleItems = uint.MaxValue,
@@ -210,7 +223,7 @@ namespace GoRogue.GameFramework
                    IFOV? customPlayerFOV = null,
                    AStar? customPather = null,
                    IComponentCollection? customComponentCollection = null)
-            : this(terrainLayer, distanceMeasurement, numberOfEntityLayers, layersBlockingWalkability,
+            : this(terrainLayer, distanceMeasurement, numberOfEntityLayers, customListPoolCreator, layersBlockingWalkability,
                 layersBlockingTransparency, entityLayersSupportingMultipleItems, pointComparer, customPlayerFOV,
                 customPather, customComponentCollection)
         {
@@ -229,7 +242,8 @@ namespace GoRogue.GameFramework
         // many of the fields/properties are read-only outside of one, which is why we use this constructor instead of
         // a utility function.
         private Map(ISettableGridView<IGameObject?> terrainLayer, Distance distanceMeasurement, int numberOfEntityLayers,
-                   uint layersBlockingWalkability, uint layersBlockingTransparency, uint entityLayersSupportingMultipleItems,
+                    Func<int, IListPool<IGameObject>>? customListPoolCreator, uint layersBlockingWalkability,
+                    uint layersBlockingTransparency, uint entityLayersSupportingMultipleItems,
                    IEqualityComparer<Point>? pointComparer, IFOV? customPlayerFOV, AStar? customPather,
                    IComponentCollection? customComponentCollection)
         {
@@ -237,8 +251,8 @@ namespace GoRogue.GameFramework
             PlayerExplored = new ArrayView<bool>(_terrain.Width, _terrain.Height);
 
             pointComparer ??= new KnownSizeHasher(terrainLayer.Width);
-            _entities = new LayeredSpatialMap<IGameObject>(numberOfEntityLayers, pointComparer, 1,
-                entityLayersSupportingMultipleItems);
+            _entities = new LayeredSpatialMap<IGameObject>(numberOfEntityLayers, customListPoolCreator, pointComparer,
+                1, entityLayersSupportingMultipleItems);
 
             LayersBlockingWalkability = layersBlockingWalkability;
             LayersBlockingTransparency = layersBlockingTransparency;
@@ -399,6 +413,11 @@ namespace GoRogue.GameFramework
         /// <see cref="SadRogue.Primitives.Distance" /> measurement to use for pathfinding/measuring distance on the
         /// map.
         /// </param>
+        /// <param name="customListPoolCreator">
+        /// A function used to determine the list pool implementation used for the spatial maps which support multiple
+        /// items in a location (if any).  The function takes the layer it is creating the pool for as a parameter.
+        /// If no custom creator is specified, a ListPool is used.
+        /// </param>
         /// <param name="layersBlockingWalkability">
         /// Layer mask containing those layers that should be allowed to have items that block walkability.
         /// Defaults to all layers.
@@ -434,7 +453,9 @@ namespace GoRogue.GameFramework
         /// </param>
         /// <returns>A new Map whose terrain is created using the given terrainLayer, and with the given parameters.</returns>
         public static Map CreateMap<T>(ISettableGridView<T?> terrainLayer, int numberOfEntityLayers,
-                                       Distance distanceMeasurement, uint layersBlockingWalkability = uint.MaxValue,
+                                       Distance distanceMeasurement,
+                                       Func<int, IListPool<IGameObject>>? customListPoolCreator = null,
+                                       uint layersBlockingWalkability = uint.MaxValue,
                                        uint layersBlockingTransparency = uint.MaxValue,
                                        uint entityLayersSupportingMultipleItems = uint.MaxValue,
                                        IEqualityComparer<Point>? pointComparer = null,
@@ -444,9 +465,9 @@ namespace GoRogue.GameFramework
         {
             // Assignment is fine here
             var terrainMap = new LambdaSettableTranslationGridView<T?, IGameObject?>(terrainLayer, t => t, g => (T?)g);
-            return new Map(terrainMap, numberOfEntityLayers, distanceMeasurement, layersBlockingWalkability,
-                layersBlockingTransparency, entityLayersSupportingMultipleItems, pointComparer, customPlayerFOV, customPather,
-                customComponentContainer);
+            return new Map(terrainMap, numberOfEntityLayers, distanceMeasurement, customListPoolCreator,
+                layersBlockingWalkability, layersBlockingTransparency, entityLayersSupportingMultipleItems, pointComparer,
+                customPlayerFOV, customPather, customComponentContainer);
         }
 
         private bool FullIsTransparent(Point position)
@@ -664,8 +685,7 @@ namespace GoRogue.GameFramework
 
         /// <summary>
         /// Adds the given entity (non-terrain object) to its recorded location, removing it from the map it is currently a part
-        /// of.  Throws ArgumentException if the entity could not be added
-        /// (eg., collision detection would not allow it, etc.)
+        /// of.  Throws ArgumentException if the entity could not be added (eg., collision detection would not allow it, etc.)
         /// </summary>
         /// <param name="entity">Entity to add.</param>
         public void AddEntity(IGameObject entity)
@@ -708,6 +728,83 @@ namespace GoRogue.GameFramework
             entity.OnMapChanged(this);
             entity.Moved += OnGameObjectMoved;
             entity.WalkabilityChanging += OnWalkabilityChanging;
+        }
+
+        /// <summary>
+        /// Adds the given entity (non-terrain object) to this map, removing it from the map it is currently a part
+        /// of.  Returns false if the entity could not be added (eg., collision detection would not allow it, etc.); true otherwise.
+        /// </summary>
+        /// <param name="entity">Entity to add.</param>
+        /// <returns>True if the entity was successfully added; false otherwise.</returns>
+        public bool TryAddEntity(IGameObject entity) => TryAddEntityAt(entity, entity.Position);
+
+        /// <summary>
+        /// Adds the given entity (non-terrain object) to the location specified, removing it from the map it is currently a part
+        /// of.  Returns false if the entity could not be added (eg., collision detection would not allow it, etc.); true otherwise.
+        /// </summary>
+        /// <remarks>
+        /// The entity's Position property will be set to the location specified before it is added, but only if the function returns true.  No changes
+        /// will have been made to the entity if the function returns false; that is; you may assume that Moved events will not have fired,
+        /// the entity will not have been removed from any map it is already a part of, etc.
+        /// </remarks>
+        /// <param name="entity">Entity to add.</param>
+        /// <param name="position">Location to add the entity to.</param>
+        /// <returns>True if the entity was successfully added to the location specified; false otherwise.</returns>
+        public bool TryAddEntityAt(IGameObject entity, Point position)
+        {
+            if (!CanAddEntityAt(entity, position)) return false;
+
+            // Remove the entity from its current map, if it is a part of one
+            entity.CurrentMap?.RemoveEntity(entity);
+
+            // Update the entity's position field
+            entity.Position = position;
+
+            // Add the entity to this map
+            _entities.Add(entity, entity.Position);
+            entity.OnMapChanged(this);
+            entity.Moved += OnGameObjectMoved;
+            entity.WalkabilityChanging += OnWalkabilityChanging;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Returns true if the entity given can be added to this map at its current position; false otherwise.
+        /// </summary>
+        /// <param name="entity">The entity to add.</param>
+        /// <returns>true if the entity given can be added to this map at its current position; false otherwise.</returns>
+        public bool CanAddEntity(IGameObject entity) => CanAddEntityAt(entity, entity.Position);
+
+        /// <summary>
+        /// Returns true if the entity given can be added to this map at the position given; false otherwise.
+        /// </summary>
+        /// <param name="entity">The entity to add.</param>
+        /// <param name="position">The position to add the entity at.</param>
+        /// <returns>true if the entity given can be added to this map at the given position; false otherwise.</returns>
+        public bool CanAddEntityAt(IGameObject entity, Point position)
+        {
+            if (entity.CurrentMap == this)
+                return false;
+
+            if (entity.Layer < 1)
+                return false;
+
+            if (!this.Contains(position))
+                return false;
+
+            if (!entity.IsWalkable)
+            {
+                if (!LayerMasker.HasLayer(LayersBlockingWalkability, entity.Layer))
+                    return false;
+                if (!WalkabilityView[position])
+                    return false;
+            }
+
+            if (!entity.IsTransparent && !LayerMasker.HasLayer(LayersBlockingTransparency, entity.Layer))
+                return false;
+
+            return _entities.CanAdd(entity, position);
         }
 
         /// <summary>
@@ -799,6 +896,22 @@ namespace GoRogue.GameFramework
             entity.OnMapChanged(null);
             entity.Moved -= OnGameObjectMoved;
             entity.WalkabilityChanging -= OnWalkabilityChanging;
+        }
+
+        /// <summary>
+        /// Removes the given entity (non-terrain object) from the map.  Does nothing and returns false if the entity
+        /// was not part of this map; returns true and removes it otherwise.
+        /// </summary>
+        /// <param name="entity">The entity to remove from the map.</param>
+        /// <returns>True if the given entity was removed from the map; false otherwise (eg the entity given was not in the map).</returns>
+        public bool TryRemoveEntity(IGameObject entity)
+        {
+            if (!_entities.TryRemove(entity)) return false;
+
+            entity.OnMapChanged(null);
+            entity.Moved -= OnGameObjectMoved;
+            entity.WalkabilityChanging -= OnWalkabilityChanging;
+            return true;
         }
 
         #endregion

@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using SadRogue.Primitives;
 using System.Linq;
 using GoRogue.Components;
 using GoRogue.DiceNotation;
 using GoRogue.Factories;
+using GoRogue.FOV;
 using GoRogue.MapGeneration;
 using GoRogue.MapGeneration.ContextComponents;
 using GoRogue.MapGeneration.Steps.Translation;
@@ -15,6 +15,7 @@ using GoRogue.SerializedTypes.MapGeneration;
 using GoRogue.SerializedTypes.MapGeneration.ContextComponents;
 using GoRogue.SerializedTypes.MapGeneration.Steps.Translation;
 using GoRogue.UnitTests.Mocks;
+using SadRogue.Primitives;
 using SadRogue.Primitives.SerializedTypes;
 
 namespace GoRogue.UnitTests.Serialization
@@ -27,7 +28,7 @@ namespace GoRogue.UnitTests.Serialization
         ///     1. All types in this list are serializable via generic data contract serialization
         ///     2. All types in this list serialize to JSON objects (JObject) when using Newtonsoft.Json
         /// </summary>
-        private static readonly IEnumerable<object> _expressiveTypes = new object[]
+        private static readonly IEnumerable<object> s_expressiveTypes = new object[]
         {
             // Not expressive types, but if these don't serialize properly to binary and JSON it will break
             // tests using them
@@ -39,6 +40,11 @@ namespace GoRogue.UnitTests.Serialization
             new ComponentTagPair(new Component2() { Value = 91 }, null),
             new ItemStepPair<string>("MyItem", "MyStep"),
             new ItemStepPair<string>("MyItem2", "MyStep2"),
+            new FOVCalculateParameters((1, 2), 3.4, Distance.Chebyshev, 5.6, 7.89),
+            // Simple classes which meet the constraints and have no expressive versions
+            // IDGenerator
+            new IDGenerator(10),
+            // Actual serialized types
             // ComponentCollection
             new ComponentCollectionSerialized
             {
@@ -151,10 +157,10 @@ namespace GoRogue.UnitTests.Serialization
         /// <summary>
         /// List of all non-expressive types that serialize to JSON objects (JObject)
         /// </summary>
-        private static readonly object[] _nonExpressiveJsonObjects =
+        private static readonly object[] s_nonExpressiveJsonObjects =
         {
             // DiceExpressions
-            Dice.Parse("(3d(1d12))k2+4"),
+            Dice.Parse("(3d(1d12))k2+4")
         };
 
         /// <summary>
@@ -173,6 +179,7 @@ namespace GoRogue.UnitTests.Serialization
             { typeof(DiceExpressionSerialized), new [] { "Expression" } },
             { typeof(FactorySerialized<FactoryItem>), new [] { "Blueprints" } },
             { typeof(AdvancedFactorySerialized<int, FactoryItem>), new [] { "Blueprints" } },
+            { typeof(IDGenerator), new[] { "CurrentInteger", "LastAssigned" } },
             { typeof(ItemStepPair<string>), new []{ "Item", "Step" } },
             { typeof(ItemListSerialized<string>), new []{ "Items" } },
             { typeof(DoorListSerialized), new []{ "RoomsAndDoors" } },
@@ -180,7 +187,8 @@ namespace GoRogue.UnitTests.Serialization
             { typeof(RectangleEdgePositionsListSerialized), new [] { "Rectangle", "Positions" } },
             { typeof(AppendItemListsSerialized<string>), new [] { "Name", "BaseListTag", "ListToAppendTag", "RemoveAppendedComponent" } },
             { typeof(RectanglesToAreasSerialized), new []{ "Name", "AreasComponentTag", "RectanglesComponentTag", "RemoveSourceComponent" } },
-            { typeof(RemoveDuplicatePointsSerialized), new []{ "Name", "UnmodifiedAreaListTag", "ModifiedAreaListTag" } }
+            { typeof(RemoveDuplicatePointsSerialized), new []{ "Name", "UnmodifiedAreaListTag", "ModifiedAreaListTag" } },
+            { typeof(FOVCalculateParameters), new[] { "Origin", "Radius", "DistanceCalc", "Angle", "Span" } }
         };
 
         /// <summary>
@@ -238,7 +246,7 @@ namespace GoRogue.UnitTests.Serialization
         /// <summary>
         /// List of non-serializable objects that do have serializable equivalents (expressive types).
         /// </summary>
-        private static readonly object[] _nonSerializableValuesWithExpressiveTypes =
+        private static readonly object[] s_nonSerializableValuesWithExpressiveTypes =
         {
             // DoorList
             GenerateDoorList(),
@@ -266,14 +274,14 @@ namespace GoRogue.UnitTests.Serialization
         /// All objects that should serialize to JSON objects.  All should have entries in TypeSerializedFields
         /// </summary>
         public static IEnumerable<object> SerializableValuesJsonObjects
-            => _expressiveTypes.Concat(_nonExpressiveJsonObjects);
+            => s_expressiveTypes.Concat(s_nonExpressiveJsonObjects);
 
         /// <summary>
         /// Objects that should have expressive versions of types.  Each item must have an entry in
         /// RegularToExpressiveTypes
         /// </summary>
         public static IEnumerable<object> AllNonExpressiveTypes
-            => _nonExpressiveJsonObjects.Concat(SerializableValuesNonJsonObjects).Concat(_nonSerializableValuesWithExpressiveTypes);
+            => s_nonExpressiveJsonObjects.Concat(SerializableValuesNonJsonObjects).Concat(s_nonSerializableValuesWithExpressiveTypes);
 
         /// <summary>
         /// All JSON objects for which we can test serialization equality

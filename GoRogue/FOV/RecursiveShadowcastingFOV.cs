@@ -10,8 +10,13 @@ namespace GoRogue.FOV
     /// <summary>
     /// Implements <see cref="IFOV"/> by using a recursive shadow-casting implementation.
     /// </summary>
+    /// <remarks>
+    /// Compared to the functionally equivalent implementation of recursive shadowcasting, <see cref="RecursiveShadowcastingBooleanBasedFOV"/>, this version
+    /// is usually a reasonable default.  However, this version can take up a great deal of memory for large maps; in these cases, you may prefer
+    /// <see cref="RecursiveShadowcastingBooleanBasedFOV"/> instead.
+    /// </remarks>
     [PublicAPI]
-    public class RecursiveShadowcastingFOV : FOVBase
+    public class RecursiveShadowcastingFOV : DoubleBasedFOVBase
     {
         private HashSet<Point> _currentFOV;
         private HashSet<Point> _previousFOV;
@@ -24,11 +29,14 @@ namespace GoRogue.FOV
         /// non-blocking (transparent) to line of sight, while false values are considered
         /// to be blocking.
         /// </param>
-        public RecursiveShadowcastingFOV(IGridView<bool> transparencyView)
+        /// <param name="hasher">The hashing algorithm to use for points in hash sets.  Defaults to the default hash algorithm for Points.</param>
+        public RecursiveShadowcastingFOV(IGridView<bool> transparencyView, IEqualityComparer<Point>? hasher = null)
             : base(transparencyView, new ArrayView<double>(transparencyView.Width, transparencyView.Height))
         {
-            _currentFOV = new HashSet<Point>();
-            _previousFOV = new HashSet<Point>();
+            hasher ??= EqualityComparer<Point>.Default;
+
+            _currentFOV = new HashSet<Point>(hasher);
+            _previousFOV = new HashSet<Point>(hasher);
         }
 
         /// <inheritdoc />
@@ -103,12 +111,12 @@ namespace GoRogue.FOV
             // Reset visibility
             if (ResultView.Width != TransparencyView.Width || ResultView.Height != TransparencyView.Height)
                 ResultView = new ArrayView<double>(TransparencyView.Width, TransparencyView.Height);
-            else
-                ResultView.Fill(0);
+            else // ArrayView.Clear is faster than the generic Fill, so we'll cast and use that since we know ResultView is an ArrayView
+                ((ArrayView<double>)ResultView).Clear();
 
             // Cycle current and previous FOVs
-            _previousFOV = _currentFOV;
-            _currentFOV = new HashSet<Point>();
+            (_previousFOV, _currentFOV) = (_currentFOV, _previousFOV);
+            _currentFOV.Clear();
         }
 
         private static void ShadowCast(int row, double start, double end, int xx, int xy, int yx, int yy,
