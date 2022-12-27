@@ -5,7 +5,7 @@ using JetBrains.Annotations;
 using SadRogue.Primitives;
 using SadRogue.Primitives.GridViews;
 
-namespace GoRogue.PerformanceTests.SenseMapping
+namespace GoRogue.PerformanceTests
 {
     public class SenseMapAlgorithms
     {
@@ -33,9 +33,7 @@ namespace GoRogue.PerformanceTests.SenseMapping
             CreateSenseMap();
 
             // Create single source at center
-            var source = AlgorithmFactory.CreateSenseSource(SourceAlgo, _senseMap.ResultView.Bounds().Center,
-                SourceRadius, SourceShape);
-            
+            var source = new SenseSource(SourceAlgo, _senseMap.Bounds().Center, SourceRadius, (Radius)SourceShape);
             _senseMap.AddSenseSource(source);
         }
 
@@ -45,11 +43,8 @@ namespace GoRogue.PerformanceTests.SenseMapping
             CreateSenseMap();
 
             // Create two sources, equidistant on x axis
-            foreach (var rect in _senseMap.ResultView.Bounds().BisectVertically().ToEnumerable())
-            {
-                var source = AlgorithmFactory.CreateSenseSource(SourceAlgo, rect.Center, SourceRadius, SourceShape);
-                _senseMap.AddSenseSource(source);
-            }
+            foreach (var rect in _senseMap.Bounds().BisectVertically())
+                _senseMap.AddSenseSource(new SenseSource(SourceAlgo, rect.Center, SourceRadius, (Radius)SourceShape));
         }
 
         [Benchmark]

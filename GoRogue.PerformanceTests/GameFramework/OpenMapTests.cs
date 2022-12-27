@@ -11,9 +11,9 @@ using SadRogue.Primitives.GridViews;
 namespace GoRogue.PerformanceTests.GameFramework
 {
     /// <summary>
-    /// Performance tests for various Map operations on an open map.
+    /// Performance tests for various Map operations
     /// </summary>
-    public class MapTests
+    public class OpenMapTests
     {
         [UsedImplicitly]
         [Params(50, 100, 200)]
