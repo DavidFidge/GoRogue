@@ -4,7 +4,6 @@ using GoRogue.FOV;
 using GoRogue.Random;
 using GoRogue.SenseMapping;
 using GoRogue.UnitTests.Mocks;
-using GoRogue.UnitTests.SenseMapping;
 using SadRogue.Primitives;
 using SadRogue.Primitives.GridViews;
 using ShaiRandom.Generators;
@@ -64,7 +63,7 @@ namespace GoRogue.UnitTests.FOV
             var senseMap = new SenseMap(s_resMap);
 
             // Set up sense source (using shadow-casting to match LOS)
-            var lightSource = AlgorithmFactory.CreateSenseSource(SourceType.Shadow, source, Radius, shape);
+            var lightSource = new SenseSource(SourceType.Shadow, source, Radius, shape);
             senseMap.AddSenseSource(lightSource);
 
             // Calculate LOS and sense map
@@ -73,12 +72,12 @@ namespace GoRogue.UnitTests.FOV
 
             // Verify equivalence of LOS and SenseMap
             Assert.Equal(Width, fov.DoubleResultView.Width);
-            Assert.Equal(Width, senseMap.ResultView.Width);
+            Assert.Equal(Width, senseMap.Width);
             Assert.Equal(Height, fov.DoubleResultView.Height);
-            Assert.Equal(Height, senseMap.ResultView.Height);
+            Assert.Equal(Height, senseMap.Height);
 
             foreach (var pos in fov.DoubleResultView.Positions())
-                Assert.Equal(fov.DoubleResultView[pos], senseMap.ResultView[pos]);
+                Assert.Equal(fov.DoubleResultView[pos], senseMap[pos]);
         }
 
 
@@ -90,9 +89,13 @@ namespace GoRogue.UnitTests.FOV
             var senseMap = new SenseMap(s_resMap);
 
             // Set up sense source (using shadow-casting to match LOS)
-            var lightSource = AlgorithmFactory.CreateSenseSource(SourceType.Shadow, source, Radius, shape);
-            lightSource.Angle = angle;
-            lightSource.Span = span;
+            var lightSource =
+                new SenseSource(SourceType.Shadow, source, Radius, shape)
+                {
+                    IsAngleRestricted = true,
+                    Angle = angle,
+                    Span = span
+                };
             senseMap.AddSenseSource(lightSource);
 
             // Calculate LOS and sense map
@@ -101,12 +104,12 @@ namespace GoRogue.UnitTests.FOV
 
             // Verify equivalence of LOS and SenseMap
             Assert.Equal(Width, fov.DoubleResultView.Width);
-            Assert.Equal(Width, senseMap.ResultView.Width);
+            Assert.Equal(Width, senseMap.Width);
             Assert.Equal(Height, fov.DoubleResultView.Height);
-            Assert.Equal(Height, senseMap.ResultView.Height);
+            Assert.Equal(Height, senseMap.Height);
 
             foreach (var pos in fov.DoubleResultView.Positions())
-                Assert.Equal(fov.DoubleResultView[pos], senseMap.ResultView[pos]);
+                Assert.Equal(fov.DoubleResultView[pos], senseMap[pos]);
         }
     }
 }

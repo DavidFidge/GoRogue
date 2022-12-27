@@ -48,9 +48,6 @@ namespace GoRogue.MapGeneration
         public int Count => _points.Count;
 
         /// <inheritdoc/>
-        public bool UseIndexEnumeration => _points.UseIndexEnumeration;
-
-        /// <inheritdoc/>
         public Point this[int index] => _points[index];
 
         /// <summary>
