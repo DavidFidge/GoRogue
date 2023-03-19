@@ -15,8 +15,8 @@ namespace GoRogue.Pathing
     /// This class encapsulates the work of building a goal map from your map level. You provide the
     /// constructor with a map view representing the map as <see cref="GoalState" /> values, and
     /// GoalMap will compute the goal map for the level. When the underlying circumstances of the
-    /// level change, the GoalMap instance will need to be updated. Call <see cref="Update" /> if obstacles
-    /// have changed, or <see cref="UpdatePathsOnly" /> if the goals have changed but not the obstacles.
+    /// level change, the GoalMap instance will need to be updated. Call <see cref="Update()" /> if obstacles
+    /// have changed, or <see cref="UpdatePathsOnly()" /> if the goals have changed but not the obstacles.
     /// This class exposes the resulting goal map to you via indexers -- GoalMap implements
     /// <see cref="SadRogue.Primitives.GridViews.IGridView{T}" />, where <see langword="null" /> indicates a square is an obstacle,
     /// and any other value indicates distance from the nearest goal.  Thus, a value of 0 indicates a tile
@@ -153,19 +153,20 @@ namespace GoRogue.Pathing
             => _goalMap.ToString(fieldSize, val => val.HasValue ? val.Value.ToString(formatString) : "null");
 
         /// <summary>
-        /// Re-evaluates the entire goal map. Should be called when obstacles change. If the
-        /// obstacles have not changed but the goals have, call <see cref="UpdatePathsOnly" /> for better efficiency.
+        /// Re-evaluates a subset of the goal map. Use only in conjunction with pathing a subset of a map.
         /// </summary>
+        /// <param name="subset">Subset of the goal map to update</param>
         /// <returns>False if no goals were produced by the evaluator, true otherwise</returns>
-        public bool Update()
+        public bool Update(Rectangle subset)
         {
             if (BaseMap.Bounds() != this.Bounds())
                 throw new InvalidOperationException(
                     $"Grid views used as the {nameof(BaseMap)} for {nameof(GoalMap)} instances must not change size.");
 
             _walkable.Clear();
-            for (var y = 0; y < BaseMap.Height; ++y)
-                for (var x = 0; x < BaseMap.Width; ++x)
+
+            for (var y = subset.MinExtentY; y <= subset.MaxExtentY; ++y)
+                for (var x = subset.MinExtentX; x <= subset.MaxExtentX; ++x)
                 {
                     var state = BaseMap[x, y];
                     if (state == GoalState.Obstacle)
@@ -174,24 +175,45 @@ namespace GoRogue.Pathing
                         _walkable.Add(new Point(x, y));
                 }
 
-            return UpdatePathsOnlyUnchecked();
+            return UpdatePathsOnlyUnchecked(subset);
         }
 
         /// <summary>
-        /// Re-evaluates the walkable portion of the goal map. Should be called anytime the goals change
-        /// but the obstacles haven't.  If the obstacles have also changed, call <see cref="Update" /> instead.
+        /// Re-evaluates the entire goal map. Should be called when obstacles change. If the
+        /// obstacles have not changed but the goals have, call <see cref="UpdatePathsOnly()" /> for better efficiency.
         /// </summary>
         /// <returns>False if no goals were produced by the evaluator, true otherwise</returns>
-        public bool UpdatePathsOnly()
+        public bool Update()
+        {
+            return Update(this.Bounds());
+        }
+
+        /// <summary>
+        /// Re-evaluates the walkable portion of a subset of the the goal map. Should be called anytime the goals change
+        /// but the obstacles haven't.  If the obstacles have also changed, call <see cref="Update(Rectangle)" /> instead.
+        /// </summary>
+        /// <param name="subset">Subset of the goal map to update</param>
+        /// <returns>False if no goals were produced by the evaluator, true otherwise</returns>
+        public bool UpdatePathsOnly(Rectangle subset)
         {
             if (BaseMap.Bounds() != this.Bounds())
                 throw new InvalidOperationException(
                     $"Grid views used as the {nameof(BaseMap)} for {nameof(GoalMap)} instances must not change size.");
 
-            return UpdatePathsOnlyUnchecked();
+            return UpdatePathsOnlyUnchecked(this.Bounds());
         }
 
-        private bool UpdatePathsOnlyUnchecked()
+        /// <summary>
+        /// Re-evaluates the walkable portion of a goal map. Should be called anytime the goals change
+        /// but the obstacles haven't.  If the obstacles have also changed, call <see cref="Update()" /> instead.
+        /// </summary>
+        /// <returns>False if no goals were produced by the evaluator, true otherwise</returns>
+        public bool UpdatePathsOnly()
+        {
+            return UpdatePathsOnly(this.Bounds());
+        }
+
+        private bool UpdatePathsOnlyUnchecked(Rectangle subset)
         {
             bool visitedNodes = false;
             var adjacencyRule = (AdjacencyRule)DistanceMeasurement;
@@ -199,7 +221,7 @@ namespace GoRogue.Pathing
             _openEdges.Clear();
             _closedSet.SetAll(false);
 
-            var mapBounds = _goalMap.Bounds();
+            var mapBounds = subset;
 
             for (int i = 0; i < _walkable.Count; i++)
             {
