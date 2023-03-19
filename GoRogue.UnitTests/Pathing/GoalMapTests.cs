@@ -223,5 +223,53 @@ namespace GoRogue.UnitTests.Pathing
             Assert.Equal(1, goalMap[1, 0]!.Value);
             Assert.Equal(2, goalMap[2, 0]!.Value);
         }
+
+        [Fact]
+        public void UpdatingSubsetOfGoalMapOnlyUpdatesCellsInSubsetWhenNoGoalsInSubset()
+        {
+            // Subset [2,0]->[3,0] Update should result in max values as there are no goals in that region
+            // 0123 -> 01MM
+            var map = MockMaps.Rectangle(4, 1);
+            var goalMapData = new ArrayView<GoalState>(map.Width, map.Height);
+            goalMapData.Fill(GoalState.Clear);
+            goalMapData[0, 0] = GoalState.Goal;
+
+            var goalMap = new GoalMap(goalMapData, Distance.Chebyshev);
+            goalMap.Update(new Rectangle(2, 0, 2, 1));
+
+            // First two cells are untouched
+            Assert.Equal(0, goalMap[0, 0]!.Value);
+            Assert.Equal(1, goalMap[1, 0]!.Value);
+
+            // Last two cells have max value as there was no goals in the subset
+            var maxValue = map.Width * map.Height;
+
+            Assert.Equal(maxValue, goalMap[2, 0]!.Value);
+            Assert.Equal(maxValue, goalMap[3, 0]!.Value);
+        }
+
+        [Fact]
+        public void UpdatingSubsetOfGoalMapOnlyUpdatesCellsInSubset()
+        {
+            // Subset [2,0]->[5,0] Update should result in only the rightmost goal being used for calculations
+            // 012210 -> 013210
+            var map = MockMaps.Rectangle(6, 1);
+            var goalMapData = new ArrayView<GoalState>(map.Width, map.Height);
+            goalMapData.Fill(GoalState.Clear);
+            goalMapData[0, 0] = GoalState.Goal;
+            goalMapData[5, 0] = GoalState.Goal;
+
+            var goalMap = new GoalMap(goalMapData, Distance.Chebyshev);
+            goalMap.Update(new Rectangle(2, 0, 4, 1));
+
+            // First two cells are untouched
+            Assert.Equal(0, goalMap[0, 0]!.Value);
+            Assert.Equal(1, goalMap[1, 0]!.Value);
+
+            Assert.Equal(3, goalMap[2, 0]!.Value);
+            Assert.Equal(2, goalMap[3, 0]!.Value);
+            Assert.Equal(1, goalMap[4, 0]!.Value);
+            Assert.Equal(0, goalMap[5, 0]!.Value);
+        }
     }
 }
