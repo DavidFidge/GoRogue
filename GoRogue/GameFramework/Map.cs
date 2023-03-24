@@ -1015,6 +1015,24 @@ namespace GoRogue.GameFramework
             => GetObjectsAt<TObject>(position.X, position.Y, layerMask);
 
         /// <summary>
+        /// Gets all objects encountered at the given position that are castable to type ObjectType, in order from the highest
+        /// existing layer in the layer
+        /// mask downward. Layer mask defaults to all layers.  The results are appended to the list passed in the first parameter.
+        /// </summary>
+        /// <typeparam name="TObject">Type of objects to return.</typeparam>
+        /// <param name="results">The list where found items are appended</param>
+        /// <param name="position">Position to get objects for.</param>
+        /// <param name="layerMask">Layer mask for which layers can return an object.  Defaults to all layers.</param>
+        /// <returns>
+        /// All objects encountered at the given position that are castable to the given type, in order from the highest existing
+        /// layer
+        /// in the mask downward.
+        /// </returns>
+        public void GetObjectsAt<TObject>(IList<TObject> results, Point position, uint layerMask = uint.MaxValue)
+            where TObject : class, IGameObject
+            => GetObjectsAt(results, position.X, position.Y, layerMask);
+
+        /// <summary>
         /// Gets all objects encountered at the given position, in order from the highest existing layer in the layer mask
         /// downward.  Layer mask defaults
         /// to all layers.
@@ -1030,6 +1048,25 @@ namespace GoRogue.GameFramework
 
             if (LayerMasker.HasLayer(layerMask, 0) && _terrain[x, y] != null)
                 yield return _terrain[x, y]!; // Null-checked above
+        }
+
+        /// <summary>
+        /// Gets all objects encountered at the given position, in order from the highest existing layer in the layer mask
+        /// downward.  Layer mask defaults.  The objects found are appended to the list passed in the first parameter.
+        /// to all layers.
+        /// </summary>
+        /// <param name="results">The list where found items are appended</param>
+        /// <param name="x">X-value of the position to get objects for.</param>
+        /// <param name="y">Y-value of the position to get objects for.</param>
+        /// <param name="layerMask">Layer mask for which layers can return an object.  Defaults to all layers.</param>
+        public void GetObjectsAt(IList<IGameObject> results, int x, int y, uint layerMask = uint.MaxValue)
+        {
+            _entities.GetItemsAt(results, x, y, layerMask);
+
+            if (LayerMasker.HasLayer(layerMask, 0) && _terrain[x, y] != null)
+            {
+                results.Add(_terrain[x, y]!);
+            }
         }
 
         /// <summary>
@@ -1055,6 +1092,30 @@ namespace GoRogue.GameFramework
 
             if (LayerMasker.HasLayer(layerMask, 0) && _terrain[x, y] is TObject t)
                 yield return t;
+        }
+
+        /// <summary>
+        /// Gets all objects encountered at the given position that are castable to type ObjectType, in order from the highest
+        /// existing layer in the layer
+        /// mask downward. Layer mask defaults to all layers. The results are appended to the list passed in through the first parameter.
+        /// </summary>
+        /// <typeparam name="TObject">Type of objects to return.</typeparam>
+        /// <param name="results">The list where found items are appended</param>
+        /// <param name="x">X-value of the position to get objects for.</param>
+        /// <param name="y">Y-value of the position to get objects for.</param>
+        /// <param name="layerMask">Layer mask for which layers can return an object.  Defaults to all layers.</param>
+        /// <returns>
+        /// All objects encountered at the given position that are castable to the given type, in order from the highest existing
+        /// layer
+        /// in the mask downward.
+        /// </returns>
+        public void GetObjectsAt<TObject>(IList<TObject> results, int x, int y, uint layerMask = uint.MaxValue)
+            where TObject : class, IGameObject
+        {
+            _entities.GetItemsAt(results, x, y, layerMask);
+
+            if (LayerMasker.HasLayer(layerMask, 0) && _terrain[x, y] is TObject t)
+                results.Add(t);
         }
 
         #endregion

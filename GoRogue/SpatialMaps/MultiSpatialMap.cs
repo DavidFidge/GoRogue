@@ -234,7 +234,35 @@ namespace GoRogue.SpatialMaps
         }
 
         /// <inheritdoc />
+        public void GetItemsAt(IList<T> results, Point position)
+        {
+            if (!_positionMapping.TryGetValue(position, out var positionList))
+                return;
+
+            for (var i = positionList.Count - 1; i >= 0; i--)
+            {
+                results.Add(positionList[i]);
+            }
+        }
+
+        /// <inheritdoc />
         public IEnumerable<T> GetItemsAt(int x, int y) => GetItemsAt(new Point(x, y));
+
+        /// <inheritdoc />
+        public void GetItemsAt(IList<T> results, int x, int y) => GetItemsAt(results, new Point(x, y));
+
+        /// <inheritdoc />
+        public void GetItemsAt<TObject>(IList<TObject> results, int x, int y) where TObject : class, T
+        {
+            if (!_positionMapping.TryGetValue(new Point(x, y), out var positionList))
+                return;
+
+            for (var i = positionList.Count - 1; i >= 0; i--)
+            {
+                if (positionList[i] is TObject itemAsTObject)
+                    results.Add(itemAsTObject);
+            }
+        }
 
         /// <inheritdoc />
         public Point? GetPositionOfOrNull(T item)

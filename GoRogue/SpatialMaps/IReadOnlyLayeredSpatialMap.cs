@@ -104,6 +104,53 @@ namespace GoRogue.SpatialMaps
         IEnumerable<T> GetItemsAt(int x, int y, uint layerMask = uint.MaxValue);
 
         /// <summary>
+        /// Gets the item(s) at the given position, appending the items to the list passed in through
+        /// the first parameter if any were found.
+        /// </summary>
+        /// <param name="results">The list where found items are appended</param>
+        /// <param name="position">The position to return the item(s) for.</param>
+        /// <param name="layerMask">
+        /// Layer mask that indicates which layers to check. Defaults to all layers.
+        /// </param>
+        /// <returns>
+        /// The item(s) at the given position if there are any items, or nothing if there is nothing
+        /// at that position.
+        /// </returns>
+        void GetItemsAt(IList<T> results, Point position, uint layerMask = uint.MaxValue);
+
+        /// <summary>
+        /// Gets the item(s) at the given position, appending the items to the list passed in through
+        /// the first parameter if any were found.
+        /// </summary>
+        /// <param name="results">The list where found items are appended</param>
+        /// <param name="x">The x-value of the position to return the item(s) for.</param>
+        /// <param name="y">The y-value of the position to return the item(s) for.</param>
+        /// <param name="layerMask">
+        /// Layer mask that indicates which layers to check. Defaults to all layers.
+        /// </param>
+        /// <returns>
+        /// The item(s) at the given position if there are any items, or nothing if there is nothing
+        /// at that position.
+        /// </returns>
+        void GetItemsAt(IList<T> results, int x, int y, uint layerMask = uint.MaxValue);
+
+        /// <summary>
+        /// Gets the item(s) at the given position which are of type TObject, appending the results
+        /// to the list passed in through the first parameter if any were found.
+        /// </summary>
+        /// <param name="results">The list where found items are appended</param>
+        /// <param name="x">The x-value of the position to return the item(s) for.</param>
+        /// <param name="y">The y-value of the position to return the item(s) for.</param>
+        /// <param name="layerMask">
+        /// Layer mask that indicates which layers to check. Defaults to all layers.
+        /// </param>
+        /// <returns>
+        /// The item(s) at the given position if there are any items, or nothing if there is nothing
+        /// at that position.
+        /// </returns>
+        void GetItemsAt<TObject>(IList<TObject> results, int x, int y, uint layerMask = uint.MaxValue) where TObject : class, T;
+
+        /// <summary>
         /// Gets a read-only spatial map representing the layer specified.
         /// </summary>
         /// <param name="layer">The layer to retrieve.</param>

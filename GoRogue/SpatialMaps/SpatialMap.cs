@@ -223,6 +223,24 @@ namespace GoRogue.SpatialMaps
         }
 
         /// <summary>
+        /// Gets the item at the given position and appends it to the list passed in the first parameter
+        /// </summary>
+        /// <remarks>
+        /// Since this implementation guarantees that only one item can be at any given
+        /// location at once, the return value is guaranteed to be at most one element. You may find it
+        /// more convenient to use the <see cref="GetItemsAt(Point)" /> function when you know you are
+        /// dealing with a SpatialMap/AdvancedSpatialMap instance.
+        /// </remarks>
+        /// <param name="results">The list where the found item, if any, is appended to</param>
+        /// <param name="position">The position to return the item for.</param>
+        public void GetItemsAt(IList<T> results, Point position)
+        {
+            _positionMapping.TryGetValue(position, out var item);
+            if (item != null)
+                results.Add(item);
+        }
+
+        /// <summary>
         /// Gets the item at the given position as a 1-element enumerable if there is any item there,
         /// or nothing if there is nothing at that position.
         /// </summary>
@@ -239,6 +257,33 @@ namespace GoRogue.SpatialMaps
         /// nothing if there is no item there.
         /// </returns>
         public IEnumerable<T> GetItemsAt(int x, int y) => GetItemsAt(new Point(x, y));
+
+        /// <summary>
+        /// Gets the item at the given position and appends it to the list passed in the first parameter
+        /// </summary>
+        /// <remarks>
+        /// Since this implementation guarantees that only one item can be at any given
+        /// location at once, the return value is guaranteed to be at most one element. You may find it
+        /// more convenient to use the <see cref="GetItemsAt(int, int)" /> function when you know you are
+        /// dealing with a SpatialMap/AdvancedSpatialMap instance.
+        /// </remarks>
+        /// <param name="results">The list where the found item, if any, is appended to</param>
+        /// <param name="x">The x-value of the position to return the item(s) for.</param>
+        /// <param name="y">The y-value of the position to return the item(s) for.</param>
+        public void GetItemsAt(IList<T> results, int x, int y) => GetItemsAt(results, new Point(x, y));
+
+        /// <summary>
+        /// Gets the item at the given position if it is of type TObject and appends it to the list passed in the first parameter
+        /// </summary>
+        /// <param name="results">The list where the found item, if any, is appended to</param>
+        /// <param name="x">The x-value of the position to return the item(s) for.</param>
+        /// <param name="y">The y-value of the position to return the item(s) for.</param>
+        public void GetItemsAt<TObject>(IList<TObject> results, int x, int y) where TObject : class, T
+        {
+            _positionMapping.TryGetValue(new Point(x, y), out var item);
+            if (item is TObject itemAsTObject)
+                results.Add(itemAsTObject);
+        }
 
         /// <inheritdoc />
         public Point? GetPositionOfOrNull(T item)

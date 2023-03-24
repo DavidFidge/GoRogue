@@ -135,11 +135,34 @@ namespace GoRogue.SpatialMaps
             => GetItemsAt(position.X, position.Y, layerMask);
 
         /// <inheritdoc />
+        public void GetItemsAt(IList<T> results, Point position, uint layerMask = uint.MaxValue)
+            => GetItemsAt(results, position.X, position.Y, layerMask);
+
+        /// <inheritdoc />
         public IEnumerable<T> GetItemsAt(int x, int y, uint layerMask = uint.MaxValue)
         {
             foreach (var relativeLayerNumber in _internalLayerMasker.Layers(layerMask >> StartingLayer))
                 foreach (var item in _layers[relativeLayerNumber].GetItemsAt(x, y))
                     yield return item;
+        }
+
+        /// <inheritdoc />
+        public void GetItemsAt(IList<T> results, int x, int y, uint layerMask = uint.MaxValue)
+        {
+            foreach (var relativeLayerNumber in _internalLayerMasker.Layers(layerMask >> StartingLayer))
+            {
+                _layers[relativeLayerNumber].GetItemsAt(results, x, y);
+            }
+        }
+
+        /// <inheritdoc />
+        public void GetItemsAt<TObject>(IList<TObject> result, int x, int y, uint layerMask = uint.MaxValue)
+            where TObject : class, T
+        {
+            foreach (var relativeLayerNumber in _internalLayerMasker.Layers(layerMask >> StartingLayer))
+            {
+                _layers[relativeLayerNumber].GetItemsAt(result, x, y);
+            }
         }
 
         /// <inheritdoc />
@@ -316,7 +339,16 @@ namespace GoRogue.SpatialMaps
         IEnumerable<T> IReadOnlySpatialMap<T>.GetItemsAt(Point position) => GetItemsAt(position);
 
         /// <inheritdoc />
+        void IReadOnlySpatialMap<T>.GetItemsAt(IList<T> results, Point position) => GetItemsAt(results, position);
+
+        /// <inheritdoc />
         IEnumerable<T> IReadOnlySpatialMap<T>.GetItemsAt(int x, int y) => GetItemsAt(x, y);
+
+        /// <inheritdoc />
+        void IReadOnlySpatialMap<T>.GetItemsAt(IList<T> results, int x, int y) => GetItemsAt(results, x, y);
+
+        /// <inheritdoc />
+        void IReadOnlySpatialMap<T>.GetItemsAt<TObject>(IList<TObject> results, int x, int y) => GetItemsAt(results, x, y);
 
         /// <inheritdoc />
         public Point? GetPositionOfOrNull(T item)
