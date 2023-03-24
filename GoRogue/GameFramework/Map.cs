@@ -1061,7 +1061,8 @@ namespace GoRogue.GameFramework
         /// <param name="layerMask">Layer mask for which layers can return an object.  Defaults to all layers.</param>
         public void GetObjectsAt(IList<IGameObject> results, int x, int y, uint layerMask = uint.MaxValue)
         {
-            _entities.GetItemsAt(results, x, y, layerMask);
+            foreach (var result in _entities.GetItemsAt(x, y, layerMask))
+                results.Add(result);
 
             if (LayerMasker.HasLayer(layerMask, 0) && _terrain[x, y] != null)
             {
@@ -1112,7 +1113,11 @@ namespace GoRogue.GameFramework
         public void GetObjectsAt<TObject>(IList<TObject> results, int x, int y, uint layerMask = uint.MaxValue)
             where TObject : class, IGameObject
         {
-            _entities.GetItemsAt(results, x, y, layerMask);
+            foreach (var result in _entities.GetItemsAt(x, y, layerMask))
+            {
+                if (result is TObject resultAsTObject)
+                results.Add(resultAsTObject);
+            }
 
             if (LayerMasker.HasLayer(layerMask, 0) && _terrain[x, y] is TObject t)
                 results.Add(t);
