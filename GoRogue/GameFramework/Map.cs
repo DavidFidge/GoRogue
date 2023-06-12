@@ -945,8 +945,7 @@ namespace GoRogue.GameFramework
 
         /// <summary>
         /// Gets all (non-terrain) entities encountered at the given position that are castable to type EntityType, in order from
-        /// the highest existing layer
-        /// in the layer mask downward.  Layer mask defaults to all layers.
+        /// the highest existing layer in the layer mask downward.  Layer mask defaults to all layers.
         /// </summary>
         /// <typeparam name="TEntity">Type of entities to return.</typeparam>
         /// <param name="position">Position to get entities for.</param>

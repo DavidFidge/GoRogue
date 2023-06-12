@@ -7,6 +7,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 None
 
+## [3.0.0-beta06] - 2023-05-22
+
+### Changed
+- `IParentAwareComponent` and `ParentAwareComponentBase` now record the parent as type `object`
+- `ParentAwareComponentBase<T>` no longer has type restrictions on type T; it can now accept any type as the parent.
+    - This makes integration into other component systems more feasible since `IObjectWithComponents` is no longer required
+
+## [3.0.0-beta05] - 2023-05-17
+
+### Added
+- Added custom list enumerators fitting the primitive library's custom enumerable pattern for casting objects to a given type
+    - Most uses are internal, however they may be useful for exposing lists of objects in performance-critical situations.
+
+### Changed
+- Upgraded primitives library to rc2, which enables some spatial map optimizations.
+- `ComponentCollection` now uses custom iterators for component retrieval functions which are notably faster than the old implementations.
+- Miscellaneous optimizations to dictionary accesses in `ComponentCollection`
+- `GameFramework.Map` now uses custom iterators for `GetEntitiesAt` and `GetObjectsAt` functions which are notably faster than the old implementations.
+- `GameFramework.Map` implements `GridViewBase<MapObjectsAtEnumerator>`, rather than `GridViewBase<IEnumerable<IGameObject>>`.
+    - This should be functionally identical, since the `MapObjectsAtEnumerator` also implements `IEnumerable`.
+
+
 ## [3.0.0-beta04] - 2023-03-24
 
 ### Fixed
