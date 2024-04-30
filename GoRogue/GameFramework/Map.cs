@@ -296,9 +296,6 @@ namespace GoRogue.GameFramework
                     ? (IGridView<bool>)new TerrainOnlyMapTransparencyView(this)
                     : new FullMapTransparencyView(this);
 
-            WalkabilityView = layersBlockingWalkability == 1
-                ? (IGridView<bool>)new TerrainOnlyMapWalkabilityView(this)
-                : new FullMapWalkabilityView(this);
                 WalkabilityView = layersBlockingWalkability == 1
                     ? (IGridView<bool>)new TerrainOnlyMapWalkabilityView(this)
                     : new FullMapWalkabilityView(this);
