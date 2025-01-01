@@ -1,319 +1,185 @@
-﻿using GoRogue.MapViews;
-using System;
-using System.Collections;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GoRogue.SenseMapping.Sources;
+using JetBrains.Annotations;
+using SadRogue.Primitives;
+using SadRogue.Primitives.GridViews;
 
 namespace GoRogue.SenseMapping
 {
-	/// <summary>
-	/// Class responsible for calculating a map for senses (sound, light, etc), or generally anything
-	/// that can be modeled as sources propegating through a map that has degrees of resistance to spread.
-	/// </summary>
-	/// <remarks>
-	/// Generally, this class can be used to model the result of applying ripple-like or shadowcasting-like
-	/// "spreading" of values from one or more sources through a map.  This can include modeling the spreading
-	/// of light, sound, heat for a heatmap, etc. through a map.  You create one or more <see cref="SenseSource"/>
-	/// instances representing your various sources, add them to the SenseMap, and call <see cref="Calculate"/>
-	/// when you wish to re-calculate the SenseMap.
-	/// 
-	/// Like most GoRogue algorithm implementations, SenseMap takes as a construction parameter an IMapView that represents
-	/// the map.  Specifically, it takes an <see cref="IMapView{Double}"/>, where the double value at each location
-	/// represents the "resistance" that location has to the passing of source values through it.  The values must be >= 0.0,
-	/// where 0.0 means that a location has no resistance to spreading of source values, and greater values represent greater
-	/// resistance.  The scale of this resistance is arbitrary, and is related to the <see cref="SenseSource.Intensity"/> of
-	/// your sources.  As a source spreads through a given location, a value equal to the resistance value of that location
-	/// is subtracted from the source's value (plus the normal fallof for distance).
-	/// 
-	/// The map can be calculated by calling the <see cref="Calculate"/> function.
-	/// 
-	/// This class exposes the resulting sensory values values to you via indexers -- SenseMap implements
-	/// <see cref="IMapView{Double}"/>, where 0.0 indicates no sources were able to spread to the given location (eg, either it was
-	/// stopped or fell off due to distance), and a value greater than 0.0 indicates the combined intensity of any sources
-	/// that reached the given location.
-	/// </remarks>
-	public class SenseMap : IReadOnlySenseMap, IEnumerable<double>, IMapView<double>
-	{
-		private List<SenseSource> _senseSources;
+    /// <summary>
+    /// Implementation of <see cref="ISenseMap"/> that implements the required fields/methods in a way applicable to many typical use cases.
+    /// </summary>
+    /// <remarks>
+    /// This implementation of <see cref="ISenseMap"/> implements the enumerables by using a pair of hash maps to keep track of the positions
+    /// which are non-0 in the current (and previous) calculate calls.  This provides relatively efficient implementations that should be applicable
+    /// to a variety of use cases.
+    ///
+    /// The calculation, by default, is performed by first calling the <see cref="ISenseSource.CalculateLight"/> function of all sources.  This is performed
+    /// in parallel via a Parallel.ForEach loop, if there is more than one source and the <see cref="ParallelCalculate"/> property is set to true. Generally, even at
+    /// 2 sense sources there is notable benefit to parallelizing the calculation; however feel free to use this flag to tweak this to your use case.
+    ///
+    /// After all calculations are complete, the <see cref="OnCalculate"/> implementation then takes the result view of each source and copies it to the appropriate
+    /// section of the <see cref="IReadOnlySenseMap.ResultView"/> property.  This is done sequentially, in order to avoid any problems with overlapping sources.
+    /// Values are aggregated by simply adding the current value and the new value together.
+    ///
+    /// If you want to customize the way values are aggregated together, you may customize the <see cref="ApplySenseSourceToResult"/> function.  This function is
+    /// used to apply the result view of the specified sense source onto the result view.  If you simply want to change the aggregation method, then you can copy-paste
+    /// the function and change the line that performs the aggregation; the aggregation method itself is not provided as a separate function for performance reasons.
+    /// You may also override this function to customize the order/method of performing the aggregation.
+    ///
+    /// Most other customization would require overriding the <see cref="OnCalculate"/> function.
+    ///
+    /// You may also simply create your own implementation of <see cref="ISenseSource"/>, either by directly implementing that interface or inheriting from
+    /// <see cref="SenseMapBase"/>.  This may be the best option if, for example, you want to avoid the use of a hash set in the enumerable implementation. 
+    /// </remarks>
+    [PublicAPI]
+    public class SenseMap : SenseMapBase
+    {
+        /// <summary>
+        /// A hash set which contains the positions which have non-0 values in the most current calculation result.
+        /// </summary>
+        /// <remarks>
+        /// This hash set is the backing structure for <see cref="NewlyInSenseMap"/> and <see cref="NewlyOutOfSenseMap"/>,
+        /// as well as <see cref="CurrentSenseMap"/>. During <see cref="OnCalculate"/>, this value is cleared before
+        /// the new calculations are performed.
+        ///
+        /// Typically you will only need to interact with this if you are overriding <see cref="OnCalculate"/>; in this case, if
+        /// you do not call this class's implementation, you will need to perform this clearing yourself.
+        ///
+        /// In order to preserve the use of whatever hasher was passed to the class at startup, it is recommended that you do _not_
+        /// re-allocate this structure entirely.  See <see cref="OnCalculate"/> for a way to manage both this and <see cref="PreviousSenseMapBacking"/>
+        /// that does not involve re-allocating.
+        /// </remarks>
+        protected HashSet<Point> CurrentSenseMapBacking;
+        /// <inheritdoc />
+        public override IEnumerable<Point> CurrentSenseMap => CurrentSenseMapBacking;
 
-		private HashSet<Coord> currentSenseMap;
+        /// <summary>
+        /// A hash set which contains the positions which had non-0 values in the previous calculation result.
+        /// </summary>
+        /// <remarks>
+        /// This hash set is the backing structure for <see cref="NewlyInSenseMap"/> and <see cref="NewlyOutOfSenseMap"/>.
+        /// 
+        /// Typically you will only need to interact with this if you are overriding <see cref="OnCalculate"/>; in this case, if
+        /// you do not call this class's implementation, you will need to ensure this is set as appropriate before the new calculation is performed.
+        ///
+        /// In order to preserve the use of whatever hasher was passed to the class at startup, it is recommended that you do _not_
+        /// re-allocate this structure entirely.  See <see cref="OnCalculate"/> for a way to manage both this and <see cref="CurrentSenseMapBacking"/>
+        /// that does not involve re-allocating.
+        /// </remarks>
+        protected HashSet<Point> PreviousSenseMapBacking;
 
-		private int lastHeight;
+        /// <summary>
+        /// Whether or not to calculate each sense source's spread algorithm in parallel.  Has no effect if there is only one source added.
+        /// </summary>
+        /// <remarks>
+        /// When this is set to true, calling of <see cref="ISenseSource.CalculateLight"/> will happen in parallel via multiple threads.  A
+        /// Parallel.ForEach will be used, which will enable the use of a thread pool.
+        ///
+        /// In either case, the default implementation of sense sources always have their own result views on which they perform their calculations,
+        /// so there is no concern with overlapping sources.  This does NOT affect the copying of sense source's values from its local result view
+        /// to the sense map's one, which in the default implementation is always sequential.
+        /// </remarks>
+        public bool ParallelCalculate { get; set; }
 
-		private int lastWidth;
+        /// <summary>
+        /// Constructor.
+        /// </summary>
+        /// <param name="resistanceView">The resistance view to use for calculations.</param>
+        /// <param name="resultViewAndResizer">
+        /// The view in which the sense map calculation results are stored, along with a method to use to resize it as needed.
+        ///
+        /// If unspecified or null, an ArrayView will be used for the result view, and the resize function will allocate a new
+        /// ArrayView of the appropriate size as needed.  This should be sufficient for most use cases.
+        ///
+        /// The resizer function must return a view with all of its values set to 0.0, which has the given width and height.
+        /// </param>
+        /// <param name="parallelCalculate">Whether or not to calculate the sense sources in parallel using Parallel.ForEach.  Has no effect if there is only one source added.</param>
+        /// <param name="hasher">The hashing algorithm to use for points in hash sets.  Defaults to the default hash algorithm for Points.</param>
+        public SenseMap(IGridView<double> resistanceView, CustomResultViewWithResize? resultViewAndResizer = null,
+            bool parallelCalculate = true, IEqualityComparer<Point>? hasher = null)
+            : base(resistanceView, resultViewAndResizer)
+        {
+            ParallelCalculate = parallelCalculate;
+            hasher ??= EqualityComparer<Point>.Default;
 
-		private HashSet<Coord> previousSenseMap;
+            PreviousSenseMapBacking = new HashSet<Point>(hasher);
+            CurrentSenseMapBacking = new HashSet<Point>(hasher);
+        }
 
-		private IMapView<double> resMap;
+        /// <inheritdoc />
+        public override IEnumerable<Point> NewlyInSenseMap => CurrentSenseMapBacking.Where(pos => !PreviousSenseMapBacking.Contains(pos));
 
-		// Making these 1D didn't really affect performance that much, though may be worth it on
-		// large maps
-		private double[,] senseMap;
+        /// <inheritdoc />
+        public override IEnumerable<Point> NewlyOutOfSenseMap => PreviousSenseMapBacking.Where(pos => !CurrentSenseMapBacking.Contains(pos));
 
-		/// <summary>
-		/// Constructor. Takes the resistance map to use for calculations.
-		/// </summary>
-		/// <param name="resMap">The resistance map to use for calculations.</param>
-		public SenseMap(IMapView<double> resMap)
-		{
-			this.resMap = resMap;
-			senseMap = new double[resMap.Width, resMap.Height];
-			lastWidth = resMap.Width;
-			lastHeight = resMap.Height;
+        /// <inheritdoc />
+        public override void Reset()
+        {
+            base.Reset();
 
-			_senseSources = new List<SenseSource>();
+            // Cycle current and previous hash sets to avoid re-allocation of internal buffers
+            (PreviousSenseMapBacking, CurrentSenseMapBacking) = (CurrentSenseMapBacking, PreviousSenseMapBacking);
+            CurrentSenseMapBacking.Clear();
+        }
 
-			previousSenseMap = new HashSet<Coord>();
-			currentSenseMap = new HashSet<Coord>();
-		}
+        /// <inheritdoc />
+        protected override void OnCalculate()
+        {
+            // Anything past 1 sense source seems to benefit notably from parallel execution
+            if (SenseSources.Count > 1 && ParallelCalculate)
+                Parallel.ForEach(SenseSources, senseSource => { senseSource.CalculateLight(); });
+            else
+                foreach (var senseSource in SenseSources)
+                    senseSource.CalculateLight();
 
-		/// <summary>
-		/// IEnumerable of only positions currently "in" the SenseMap, eg. all positions that have a
-		/// value other than 0.0.
-		/// </summary>
-		public IEnumerable<Coord> CurrentSenseMap => currentSenseMap;
+            // Flush sources to actual senseMap
+            foreach (var senseSource in SenseSources)
+                ApplySenseSourceToResult(senseSource);
+        }
 
-		/// <summary>
-		/// Height of sense map.
-		/// </summary>
-		public int Height => resMap.Height;
+        /// <summary>
+        /// Takes the given source and applies its values to the appropriate sub-area of <see cref="SenseMapBase.ResultViewBacking"/>.  Adds any locations that
+        /// end up with non-0 values to the <see cref="CurrentSenseMapBacking"/> hash set.
+        /// </summary>
+        /// <remarks>
+        /// Override this if you need to control the aggregation function (eg. do something other than add values together), or if you want to apply results
+        /// of sense source calculations to the sense map in a different way.
+        /// </remarks>
+        /// <param name="source">The source to apply.</param>
+        protected virtual void ApplySenseSourceToResult(ISenseSource source)
+        {
+            // Calculate actual radius bounds, given constraint based on location
+            var minX = Math.Min((int)source.Radius, source.Position.X);
+            var minY = Math.Min((int)source.Radius, source.Position.Y);
+            var maxX = Math.Min((int)source.Radius, ResistanceView.Width - 1 - source.Position.X);
+            var maxY = Math.Min((int)source.Radius, ResistanceView.Height - 1 - source.Position.Y);
 
-		/// <summary>
-		/// IEnumerable of positions that DO have a non-zero value in the sense map as of the most
-		/// current <see cref="Calculate"/> call, but DID NOT have a non-zero value after the previous time
-		/// <see cref="Calculate"/> was called.
-		/// </summary>
-		public IEnumerable<Coord> NewlyInSenseMap => currentSenseMap.Where(pos => !previousSenseMap.Contains(pos));
+            // Use radius bounds to extrapolate global coordinate scheme mins
+            var gMin = source.Position - new Point(minX, minY);
 
-		/// <summary>
-		/// IEnumerable of positions that DO NOT have a non-zero value in the sense map as of the
-		/// most current <see cref="Calculate"/> call, but DID have a non-zero value after the previous time
-		/// <see cref="Calculate"/> was called.
-		/// </summary>
-		public IEnumerable<Coord> NewlyOutOfSenseMap => previousSenseMap.Where(pos => !currentSenseMap.Contains(pos));
+            // Use radius bound to extrapolate light-local coordinate scheme min and max bounds that
+            // are actually blitted
+            var lMin = new Point((int)source.Radius - minX, (int)source.Radius - minY);
+            var lMax = new Point((int)source.Radius + maxX, (int)source.Radius + maxY);
 
-		/// <summary>
-		/// Read-only list of all sources currently considered part of the SenseMap. Some may have their
-		/// <see cref="SenseSource.Enabled"/> flag set to false, so all of these may or may not be counted
-		/// when <see cref="Calculate"/> is called.
-		/// </summary>
-		public IReadOnlyList<SenseSource> SenseSources => _senseSources.AsReadOnly();
+            for (var xOffset = 0; xOffset <= lMax.X - lMin.X; xOffset++)
+                for (var yOffset = 0; yOffset <= lMax.Y - lMin.Y; yOffset++)
+                {
+                    // Offset local/current by proper amount, and update light-map
+                    var c = new Point(xOffset, yOffset);
+                    var gCur = gMin + c;
+                    var lCur = lMin + c;
 
-		/// <summary>
-		/// Width of the sense map.
-		/// </summary>
-		public int Width => resMap.Width;
-
-		/// <summary>
-		/// Returns the "sensory value" for the given position.
-		/// </summary>
-		/// <param name="index1D">Position to return the sensory value for, as a 1d-index-style value.</param>
-		/// <returns>The sense-map value for the given position.</returns>
-		public double this[int index1D] => senseMap[Coord.ToXValue(index1D, Width), Coord.ToYValue(index1D, Width)];
-
-		/// <summary>
-		/// Returns the "sensory value" for the given position.
-		/// </summary>
-		/// <param name="pos">The position to return the sensory value for.</param>
-		/// <returns>The sensory value for the given position.</returns>
-		public double this[Coord pos] => senseMap[pos.X, pos.Y];
-
-		/// <summary>
-		/// Returns the "sensory value" for the given position.
-		/// </summary>
-		/// <param name="x">X-coordinate of the position to return the sensory value for.</param>
-		/// <param name="y">Y-coordinate of the position to return the sensory value for.</param>
-		/// <returns>The sensory value for the given position.</returns>
-		public double this[int x, int y] => senseMap[x, y];
-
-		/// <summary>
-		/// Adds the given source to the list of sources. If the source has its
-		/// <see cref="SenseSource.Enabled"/> flag set when <see cref="Calculate"/> is next called, then
-		/// it will be counted as a source.
-		/// </summary>
-		/// <param name="senseSource">The source to add.</param>
-		public void AddSenseSource(SenseSource senseSource)
-		{
-			_senseSources.Add(senseSource);
-			senseSource.resMap = resMap;
-		}
-
-		/// <summary>
-		/// Returns a read-only representation of the SenseMap.
-		/// </summary>
-		/// <returns>This SenseMap object as <see cref="IReadOnlySenseMap"/>.</returns>
-		public IReadOnlySenseMap AsReadOnly() => this;
-
-		/// <summary>
-		/// Calcuates the map.  For each enabled source in the source list, it calculates
-		/// the source's spreading, and puts them all together in the sense map's output.
-		/// </summary>
-		public void Calculate()
-		{
-			if (lastWidth != resMap.Width || lastHeight != resMap.Height)
-			{
-				senseMap = new double[resMap.Width, resMap.Height];
-				lastWidth = resMap.Width;
-				lastHeight = resMap.Height;
-			}
-			else
-				Array.Clear(senseMap, 0, senseMap.Length);
-
-			previousSenseMap = currentSenseMap;
-			currentSenseMap = new HashSet<Coord>();
-
-			if (_senseSources.Count > 1) // Probably not the proper condition, but useful for now.
-			{
-				Parallel.ForEach(_senseSources, senseSource =>
-				{
-					senseSource.calculateLight();
-				});
-			}
-			else
-				foreach (var senseSource in _senseSources)
-					senseSource.calculateLight();
-
-			// Flush sources to actual senseMap
-			foreach (var senseSource in _senseSources)
-				blitSenseSource(senseSource, senseMap, currentSenseMap, resMap);
-		}
-
-		/// <summary>
-		/// Enumerator, in case you want to use this as a list of doubles.
-		/// </summary>
-		/// <returns>Enumerable of doubles (the sensory values).</returns>
-		public IEnumerator<double> GetEnumerator()
-		{
-			for (int y = 0; y < resMap.Height; y++)
-				for (int x = 0; x < resMap.Width; x++)
-					yield return senseMap[x, y];
-		}
-
-		// Warning about hidden overload intentionally disabled -- the two methods are equivalent but
-		// the ToString method that takes 0, as opposed to all optional, parameters is necessary to
-		// override the one from base class object. That one calls this one so the "hidden" overload
-		// is of no harm.
-#pragma warning disable RECS0137
-
-		/// <summary>
-		/// ToString that customizes the characters used to represent the map.
-		/// </summary>
-		/// <param name="normal">The character used for any location not in the SenseMap.</param>
-		/// <param name="center">
-		/// The character used for any location that is the center-point of a source.
-		/// </param>
-		/// <param name="sourceValue">
-		/// The character used for any location that is in range of a source, but not a center point.
-		/// </param>
-		/// <returns>The string representation of the SenseMap, using the specified characters.</returns>
-		public string ToString(char normal = '-', char center = 'C', char sourceValue = 'S')
-#pragma warning restore RECS0137
-
-		{
-			string result = "";
-
-			for (int y = 0; y < resMap.Height; y++)
-			{
-				for (int x = 0; x < resMap.Width; x++)
-				{
-					if (senseMap[x, y] > 0.0)
-						result += (isACenter(x, y)) ? center : sourceValue;
-					else
-						result += normal;
-
-					result += " ";
-				}
-
-				result += '\n';
-			}
-
-			return result;
-		}
-
-		/// <summary>
-		/// Returns a string representation of the map, where any location not in the SenseMap is
-		/// represented by a '-' character, any position that is the center of some source is
-		/// represented by a 'C' character, and any position that has a non-zero value but is not a
-		/// center is represented by an 'S'.
-		/// </summary>
-		/// <returns>A (multi-line) string representation of the SenseMap.</returns>
-		public override string ToString() => ToString();
-
-		/// <summary>
-		/// Returns a string representation of the map, with the actual values in the SenseMap,
-		/// rounded to the given number of decimal places.
-		/// </summary>
-		/// <param name="decimalPlaces">The number of decimal places to round to.</param>
-		/// <returns>
-		/// A string representation of the map, rounded to the given number of decimal places.
-		/// </returns>
-		public string ToString(int decimalPlaces)
-		=> senseMap.ExtendToStringGrid(elementStringifier: (double obj) => obj.ToString("0." + "0".Multiply(decimalPlaces)));
-
-		/// <summary>
-		/// Generic enumerator.
-		/// </summary>
-		/// <returns>Enumerator for looping.</returns>
-		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-		/// <summary>
-		/// Removes the given source from the list of sources. Genearlly, use this if a source is permanently removed
-		/// from a map. For temporary disabling, you should generally use the <see cref="SenseSource.Enabled"/> flag.
-		/// </summary>
-		/// <remarks>
-		/// The source values that this sense source was responsible for are NOT removed from the sensory output values
-		/// until <see cref="Calculate"/> is next called.
-		/// </remarks>
-		/// <param name="senseSource">The source to remove.</param>
-		public void RemoveSenseSource(SenseSource senseSource)
-		{
-			_senseSources.Remove(senseSource);
-			senseSource.resMap = null;
-		}
-
-		private bool isACenter(int x, int y)
-		{
-			foreach (var source in _senseSources)
-				if (source.Position.X == x && source.Position.Y == y)
-					return true;
-
-			return false;
-		}
-
-		// Blits given source's lightMap onto the global lightmap given
-		private static void blitSenseSource(SenseSource source, double[,] destination, HashSet<Coord> sourceMap, IMapView<double> resMap)
-		{
-			// Calculate actual radius bounds, given constraint based on location
-			int minX = Math.Min((int)source.Radius, source.Position.X);
-			int minY = Math.Min((int)source.Radius, source.Position.Y);
-			int maxX = Math.Min((int)source.Radius, resMap.Width - 1 - source.Position.X);
-			int maxY = Math.Min((int)source.Radius, resMap.Height - 1 - source.Position.Y);
-
-			// Use radius bounds to extrapalate global coordinate scheme mins and maxes
-			Coord gMin = source.Position - new Coord(minX, minY);
-			//Coord gMax = source.Position + Coord.Get(maxX, maxY);
-
-			// Use radius bound to extrapalate light-local coordinate scheme min and max bounds that
-			// are actually blitted
-			Coord lMin = new Coord((int)source.Radius - minX, (int)source.Radius - minY);
-			Coord lMax = new Coord((int)source.Radius + maxX, (int)source.Radius + maxY);
-
-			for (int xOffset = 0; xOffset <= lMax.X - lMin.X; xOffset++)
-			//Parallel.For(0, lMax.X - lMin.X + 1, xOffset => // By light radius 30 or so, there is enough work to get benefit here.  Manual thread splitting may also be an option.
-			{
-				for (int yOffset = 0; yOffset <= lMax.Y - lMin.Y; yOffset++)
-				{
-					// Offset local/current by proper amount, and update lightmap
-					Coord c = new Coord(xOffset, yOffset);
-					Coord gCur = gMin + c;
-					Coord lCur = lMin + c;
-
-					destination[gCur.X, gCur.Y] = destination[gCur.X, gCur.Y] + source.light[lCur.X, lCur.Y]; // Add source values,
-					if (destination[gCur.X, gCur.Y] > 0.0)
-						sourceMap.Add(gCur);
-				}
-			} //);
-		}
-	}
+                    // Null-forgiving because ResistanceView is set when sources are added, so this can't occur unless somebody has been
+                    // messing with values they're not supposed to, and adding a check would cost performance.
+                    ResultViewBacking[gCur.X, gCur.Y] += source.ResultView[lCur.X, lCur.Y];
+                    if (ResultViewBacking[gCur.X, gCur.Y] > 0.0)
+                        CurrentSenseMapBacking.Add(gCur);
+                }
+        }
+    }
 }
