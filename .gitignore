@@ -9,6 +9,7 @@
 
 # VSCode settings
 **/.vscode/*
+*.lscache
 
 # Documentation Output directory
 docs/*
