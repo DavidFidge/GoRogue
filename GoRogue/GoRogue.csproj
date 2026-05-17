@@ -82,10 +82,6 @@
     <PackageReference Include="JetBrains.Annotations" Version="2023.3.0">
 	  <PrivateAssets>all</PrivateAssets>
 	</PackageReference>
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
     <PackageReference Include="OptimizedPriorityQueue" Version="4.2.0" />
     <PackageReference Include="ShaiRandom" Version="0.0.2" />
